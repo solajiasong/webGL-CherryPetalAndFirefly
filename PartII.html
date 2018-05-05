@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>three.js webgl - loaders - OBJ loader</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body {
+				font-family: Monospace;
+				background-color: #000;
+				color: #fff;
+				margin: 0px;
+				overflow: hidden;
+			}
+			#info {
+				color: #fff;
+				position: absolute;
+				top: 10px;
+				width: 100%;
+				text-align: center;
+				z-index: 100;
+				display:block;
+			}
+			#info a, .button { color: #f00; font-weight: bold; text-decoration: underline; cursor: pointer }
+		</style>
+	</head>
+
+	<body>
+
+		<script src="js/three.min.js"></script>
+		<script src="js/OBJLoader.js"></script>
+		<script src="js/Tween.js"></script>
+
+		<script>
+
+			var container;
+
+			var camera, scene, renderer;
+
+			var mouseX = 0, mouseY = 0;
+
+			var windowHalfX = window.innerWidth / 2;
+			var windowHalfY = window.innerHeight / 2;
+
+
+			init();
+			animate();
+
+
+			function init() {
+
+				container = document.createElement( 'div' );
+				document.body.appendChild( container );
+
+				camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 2000 );
+				camera.position.z = 700;
+
+				// scene
+				// background
+				var reflectionCube = new THREE.CubeTextureLoader()
+					.setPath( 'Resources/SolaTexture/' )
+					.load( [ 'Background_1.jpg', 'Background_3.jpg', 'Background_5.jpg', 'Background_6.jpg', 'Background_4.jpg', 'Background_2.jpg' ] );
+				//reflectionCube.format = THREE.RGBFormat;
+				
+				scene = new THREE.Scene();
+				scene.background = reflectionCube;
+				//scene.background = new THREE.Color().setHSL( 0.6, 0, 1 );
+				//scene.fog = new THREE.Fog( scene.background, 1, 5000 );
+
+				hemiLight = new THREE.HemisphereLight( 0xffffff, 0xffffff, 0.6 );
+				hemiLight.color.setHSL( 0, 1, 0.6 );
+				hemiLight.groundColor.setHSL( 0.095, 1, 0.75 );
+				hemiLight.position.set( 0, 3000, 0 );
+				scene.add( hemiLight );
+
+				var ambientLight = new THREE.AmbientLight( 0x404040, 0.8 );
+				scene.add( ambientLight );
+
+				var pointLight = new THREE.PointLight( 0xffffff, 1 );
+				camera.add( pointLight );
+				scene.add( camera );
+
+				// texture
+
+				var manager = new THREE.LoadingManager();
+				manager.onProgress = function ( item, loaded, total ) {
+
+					console.log( item, loaded, total );
+
+				};
+
+				var textureLoader = new THREE.TextureLoader( manager );
+				var texture = textureLoader.load( 'Resources/petal/p_01.jpg' );
+
+				// model
+
+				var onProgress = function ( xhr ) {
+					if ( xhr.lengthComputable ) {
+						var percentComplete = xhr.loaded / xhr.total * 100;
+						console.log( Math.round(percentComplete, 2) + '% downloaded' );
+					}
+				};
+
+				var onError = function ( xhr ) {
+				};
+
+				var loader = new THREE.OBJLoader( manager );
+				loader.load( 'Resources/petal/flower.obj', function ( object ) {
+
+					object.traverse( function ( child ) {
+
+						if ( child instanceof THREE.Mesh ) {
+						
+							//双面贴图
+							child.material.side = THREE.DoubleSide;
+							child.material.map = texture;
+							child.material.blending = THREE['AdditiveBlending'];
+							child.material.fog = false;
+
+						}
+
+					} );
+					scene.add( object );
+					console.log(object);
+					
+					//Create copies of object, with random position, and angle
+					for (var i=0; i<2000; i++){
+						var objectCopy = object.clone();
+						objectCopy.position.x = randn_bm() * 600 + 1200;
+						objectCopy.position.y = randn_bm() * 600 + 800;
+						objectCopy.position.z = randn_bm() * 300;
+						
+						objectCopy.rotation.x = Math.random() * 3.14 / 2;
+						objectCopy.rotation.y = Math.random() * 3.14 / 2;
+						objectCopy.rotation.z = Math.random() * 3.14 / 2;
+						
+						objectCopy.scale.x = objectCopy.scale.y = objectCopy.scale.z = Math.random() * 8;
+						
+						scene.add( objectCopy );
+						
+						// Add falling movement
+						new TWEEN.Tween( objectCopy.position )
+							//.delay( i * 5 )
+							.to( {x: objectCopy.position.x - 2000 - randn_bm() * 300, y: objectCopy.position.y - 1500 - randn_bm() * 300, z: objectCopy.position.z + randn_bm() * 300}, 20000 )
+							//.easing( TWEEN.Easing.Sinusoidal.InOut )
+							//.onComplete( loopPetal )
+							.start();
+						
+						// 
+						var x_rotation = Math.random() * 30;
+						var y_rotation = Math.random() * 30;
+						var z_rotation = Math.random() * 30;
+						new TWEEN.Tween( objectCopy.rotation )
+							//.to( {x: Math.random() * 20, y: Math.random() * 20, z: Math.random() * 20}, 20000 )
+							.to( {x: x_rotation,y: y_rotation, z: z_rotation}, 20000 )
+							.start();
+					}
+
+
+				}, onProgress, onError );
+
+				renderer = new THREE.WebGLRenderer({
+											  //antialias: true,
+											  alpha: true
+											});
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				container.appendChild( renderer.domElement );
+
+				document.addEventListener( 'mousemove', onDocumentMouseMove, false );
+
+				//
+
+				window.addEventListener( 'resize', onWindowResize, false );
+
+			}
+
+			function onWindowResize() {
+
+				windowHalfX = window.innerWidth / 2;
+				windowHalfY = window.innerHeight / 2;
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+			function onDocumentMouseMove( event ) {
+
+				mouseX = ( event.clientX - windowHalfX ) / 2;
+				mouseY = ( event.clientY - windowHalfY ) / 2;
+
+			}
+
+			//
+
+			function animate() {
+
+				requestAnimationFrame( animate );
+				render();
+
+			}
+
+			function render() {
+
+				TWEEN.update();
+			
+				camera.position.x += ( mouseX - camera.position.x ) * .02;
+				camera.position.y += ( - mouseY - camera.position.y ) * .005;
+
+				camera.lookAt( scene.position );
+
+				renderer.render( scene, camera );
+
+			}
+			
+			//Gaussian distribution random
+			function randn_bm() {
+				var u = 0, v = 0;
+				while(u === 0) u = Math.random(); //Converting [0,1) to (0,1)
+				while(v === 0) v = Math.random();
+				return Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
+			}
+		</script>
+
+	</body>
+</html>
